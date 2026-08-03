@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление ботом</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        h1 { color: #1a1a2e; margin-bottom: 30px; text-align: center; font-size: 32px; }
+        .card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .card h2 { color: #16213e; margin-bottom: 20px; font-size: 22px; border-bottom: 3px solid #4a90e2; padding-bottom: 10px; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .input-group input, .input-group textarea, .input-group select { 
+            flex: 1; padding: 12px; border: 2px solid #ddd; border-radius: 8px; 
+            font-size: 14px; min-width: 150px; transition: 0.3s;
+        }
+        .input-group input:focus, .input-group textarea:focus, .input-group select:focus {
+            border-color: #4a90e2; outline: none;
+        }
+        .input-group textarea { min-height: 60px; resize: vertical; }
+        .btn { padding: 12px 24px; background: #4a90e2; color: white; border: none; border-radius: 8px; 
+               cursor: pointer; font-size: 14px; font-weight: 600; transition: 0.3s; }
+        .btn:hover { background: #357abd; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(74,144,226,0.3); }
+        .btn-danger { background: #e74c3c; }
+        .btn-danger:hover { background: #c0392b; }
+        .btn-success { background: #2ecc71; }
+        .btn-success:hover { background: #27ae60; }
+        .btn-warning { background: #f39c12; }
+        .btn-warning:hover { background: #d68910; }
+        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; 
+                    background: #f8f9fa; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #4a90e2; }
+        .list-item .content { flex: 1; }
+        .list-item .content strong { color: #2c3e50; font-size: 16px; }
+        .list-item .content small { color: #7f8c8d; display: block; margin-top: 4px; }
+        .list-item .actions { display: flex; gap: 8px; }
+        .command-item { border-left-color: #3498db; }
+        .button-item { border-left-color: #2ecc71; }
+        .status { padding: 15px; background: #d4edda; border: 2px solid #c3e6cb; border-radius: 8px; margin-top: 10px; }
+        .flex { display: flex; gap: 20px; flex-wrap: wrap; }
+        .flex > * { flex: 1; min-width: 280px; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-danger { background: #f8d7da; color: #721c24; }
+        @media (max-width: 600px) { .input-group { flex-direction: column; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Управление Telegram ботом</h1>
+        
+        <div class="card">
+            <h2>📝 Команды</h2>
+            <div class="input-group">
+                <input type="text" id="cmdName" placeholder="Название команды (без /)">
+                <textarea id="cmdResponse" placeholder="Ответ команды"></textarea>
+                <button class="btn btn-success" onclick="addCommand()">➕ Добавить</button>
+            </div>
+            <div id="commandsList"></div>
+        </div>
+
+        <div class="card">
+            <h2>🔘 Кнопки</h2>
+            <div class="input-group">
+                <input type="text" id="btnText" placeholder="Текст кнопки">
+                <input type="text" id="btnAction" placeholder="URL или callback_data">
+                <select id="btnType">
+                    <option value="url">🔗 URL</option>
+                    <option value="callback">📱 Callback</option>
+                </select>
+                <button class="btn btn-success" onclick="addButton()">➕ Добавить</button>
+            </div>
+            <div id="buttonsList"></div>
+        </div>
+
+        <div class="card">
+            <h2>📊 Статус</h2>
+            <div class="status" id="status">
+                ✅ Бот работает. Веб-интерфейс активен.
+            </div>
+            <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn" onclick="loadConfig()">🔄 Обновить</button>
+                <button class="btn btn-warning" onclick="resetConfig()">🔄 Сбросить настройки</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/config');
+                const config = await response.json();
+                
+                // Команды
+                const commandsHtml = Object.entries(config.commands || {}).map(([name, response]) => `
+                    <div class="list-item command-item">
+                        <div class="content">
+                            <strong>/${name}</strong>
+                            <small>${response}</small>
+                        </div>
+                        <div class="actions">
+                            <button class="btn btn-danger" onclick="deleteCommand('${name}')">🗑 Удалить</button>
+                        </div>
+                    </div>
+                `).join('');
+                document.getElementById('commandsList').innerHTML = commandsHtml || '<p style="color:#999; text-align:center;">Нет команд. Добавьте первую!</p>';
+                
+                // Кнопки
+                const buttonsHtml = (config.buttons || []).map((btn, index) => `
+                    <div class="list-item button-item">
+                        <div class="content">
+                            <strong>${btn.text}</strong>
+                            <small>${btn.url || btn.callback_data || ''}</small>
+                        </div>
+                        <div class="actions">
+                            <button class="btn btn-danger" onclick="deleteButton(${index})">🗑 Удалить</button>
+                        </div>
+                    </div>
+                `).join('');
+                document.getElementById('buttonsList').innerHTML = buttonsHtml || '<p style="color:#999; text-align:center;">Нет кнопок. Добавьте первую!</p>';
+            } catch (e) {
+                console.error('Ошибка загрузки:', e);
+            }
+        }
+
+        async function addCommand() {
+            const name = document.getElementById('cmdName').value.trim();
+            const response = document.getElementById('cmdResponse').value.trim();
+            if (!name || !response) return alert('⚠️ Заполните все поля!');
+            
+            try {
+                await fetch('/api/command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, response})
+                });
+                document.getElementById('cmdName').value = '';
+                document.getElementById('cmdResponse').value = '';
+                loadConfig();
+            } catch (e) {
+                alert('Ошибка: ' + e.message);
+            }
+        }
+
+        async function deleteCommand(name) {
+            if (!confirm(`Удалить команду /${name}?`)) return;
+            await fetch(`/api/command/${name}`, {method: 'DELETE'});
+            loadConfig();
+        }
+
+        async function addButton() {
+            const text = document.getElementById('btnText').value.trim();
+            const action = document.getElementById('btnAction').value.trim();
+            const type = document.getElementById('btnType').value;
+            if (!text || !action) return alert('⚠️ Заполните все поля!');
+            
+            const btn = type === 'url' ? {text, url: action} : {text, callback_data: action};
+            await fetch('/api/button', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(btn)
+            });
+            document.getElementById('btnText').value = '';
+            document.getElementById('btnAction').value = '';
+            loadConfig();
+        }
+
+        async function deleteButton(index) {
+            if (!confirm('Удалить кнопку?')) return;
+            await fetch(`/api/button/${index}`, {method: 'DELETE'});
+            loadConfig();
+        }
+
+        async function resetConfig() {
+            if (!confirm('⚠️ Сбросить все настройки? Это действие необратимо!')) return;
+            await fetch('/api/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({commands: {start: "Привет!"}, buttons: []})
+            });
+            loadConfig();
+        }
+
+        // Автозагрузка
+        loadConfig();
+        setInterval(loadConfig, 30000);
+    </script>
+</body>
+</html>
